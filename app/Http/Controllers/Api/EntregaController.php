@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class EntregaController extends Controller
 {
@@ -114,6 +115,85 @@ class EntregaController extends Controller
             'total_entregadas' => $reporte->where('estado', 'Entregada')->count(),
             'total_pendientes' => $reporte->where('estado', 'Pendiente')->count(),
             'reporte' => $reporte->values()
+        ]);
+    }
+
+    public function reporteEntregasPorClase($id)
+    {
+        $clase = DB::table('clases')->where('id', $id)->first();
+
+        if (!$clase) {
+            return response()->json([
+                'message' => 'Clase no encontrada'
+            ], 404);
+        }
+
+        $fechaInicio = request()->query('fecha_inicio');
+        $fechaFin = request()->query('fecha_fin');
+        $busqueda = request()->query('busqueda');
+
+        $tareas = DB::table('tareas')->where('clase_id', $id)->get();
+
+        $alumnos = DB::table('alumnos_clases')
+            ->join('usuarios', 'alumnos_clases.alumno_id', '=', 'usuarios.id')
+            ->where('alumnos_clases.clase_id', $id)
+            ->select('usuarios.id', 'usuarios.nombre', 'usuarios.correo')
+            ->get();
+
+        $reporte = $tareas->map(function ($tarea) use ($alumnos, $fechaInicio, $fechaFin, $busqueda) {
+            $entregasQuery = DB::table('tareas_entregadas')->where('tarea_id', $tarea->id);
+
+            if ($fechaInicio && $fechaFin) {
+                $inicio = Carbon::parse($fechaInicio)->toDateString();
+                $fin = Carbon::parse($fechaFin)->toDateString();
+                $entregasQuery->whereBetween('fecha_revision', [$inicio, $fin]);
+            } elseif ($fechaInicio) {
+                $entregasQuery->where('fecha_revision', Carbon::parse($fechaInicio)->toDateString());
+            }
+
+            $entregas = $entregasQuery->get()->keyBy('alumno_id');
+
+            $totalAlumnos = $alumnos->count();
+            $totalEntregadas = $entregas->count();
+            $totalPendientes = $totalAlumnos - $totalEntregadas;
+
+            $busq = $busqueda ? mb_strtolower($busqueda) : null;
+            $tareaMatches = $busq ? (mb_stripos(mb_strtolower($tarea->titulo), $busq) !== false) : false;
+
+            $alumnosListado = $alumnos->filter(function ($alumno) use ($entregas, $busq, $tareaMatches) {
+                if (!$busq) return true;
+                if ($tareaMatches) return true;
+                $nombre = mb_strtolower($alumno->nombre);
+                $correo = mb_strtolower($alumno->correo);
+                return (mb_stripos($nombre, $busq) !== false) || (mb_stripos($correo, $busq) !== false);
+            })->map(function ($alumno) use ($entregas) {
+                $entrega = $entregas->get($alumno->id);
+                return [
+                    'alumno_id' => $alumno->id,
+                    'nombre' => $alumno->nombre,
+                    'correo' => $alumno->correo,
+                    'estado' => $entrega ? 'Entregada' : 'Pendiente',
+                    'fecha_revision' => $entrega->fecha_revision ?? null,
+                    'hora_revision' => $entrega->hora_revision ?? null,
+                ];
+            })->values();
+
+            return [
+                'tarea_id' => $tarea->id,
+                'titulo' => $tarea->titulo,
+                'descripcion' => $tarea->descripcion ?? null,
+                'fecha_entrega' => $tarea->fecha_entrega ?? null,
+                'total_alumnos' => $totalAlumnos,
+                'total_entregadas' => $totalEntregadas,
+                'total_pendientes' => $totalPendientes,
+                'alumnos' => $alumnosListado,
+            ];
+        })->values();
+
+        return response()->json([
+            'clase' => $clase,
+            'total_tareas' => $tareas->count(),
+            'reporte' => $reporte
         ]);
     }
 }

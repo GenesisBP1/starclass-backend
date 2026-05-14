@@ -62,11 +62,13 @@ Route::middleware('auth:sanctum')->group(function () {
         // Reportes y asistencias
         Route::get('/tareas/{id}/entregas', [EntregaController::class, 'entregasPorTarea']);
         Route::get('/tareas/{id}/reporte', [EntregaController::class, 'reporteTarea']);
+        Route::get('/clases/{id}/reporte-entregas', [EntregaController::class, 'reporteEntregasPorClase']);
         Route::get('/clases/{id}/asistencias', [AsistenciaController::class, 'asistenciasPorClase']);
 
         // Exportaciones
         Route::get('/export/asistencias/{id}', [ExportController::class, 'exportarAsistencias']);
         Route::get('/export/entregas/{id}', [ExportController::class, 'exportarEntregas']);
+        Route::get('/export/entregas-clase/{id}', [ExportController::class, 'exportarEntregasClase']);
         Route::get('/export/tareas/{id}', [ExportController::class, 'exportarTareas']);
     });
 

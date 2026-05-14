@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Exports\AsistenciasExport;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\EntregasExport;
+use App\Exports\EntregasClaseExport;
 use App\Exports\TareasExport;
 
 class ExportController extends Controller
@@ -46,6 +47,18 @@ class ExportController extends Controller
         return Excel::download(
             new TareasExport($claseId, $fechaInicio, $fechaFin, $estado, $busqueda),
             'reporte_tareas.xlsx'
+        );
+    }
+
+    public function exportarEntregasClase($claseId)
+    {
+        $fechaInicio = request()->query('fecha_inicio');
+        $fechaFin = request()->query('fecha_fin');
+        $busqueda = request()->query('busqueda');
+
+        return Excel::download(
+            new EntregasClaseExport($claseId, $fechaInicio, $fechaFin, $busqueda),
+            'reporte_entregas_clase.xlsx'
         );
     }
 }
